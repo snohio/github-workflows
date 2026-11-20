@@ -5,25 +5,30 @@ on:
 jobs:
   yaml-lint:
     runs-on: ubuntu-latest
-    container: ruby:3.1-alpine
     steps:
       - name: Checkout Code
-        uses: actions/checkout@main
-      - name: Pull Change list
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect YAML changes
         id: changed-files
-        uses: collin-miller/git-changesets@master
-      - name: Verify Changed files
-        id: verify-changed-files
-        run: |
-          echo '${{ steps.changed-files.outputs.added_modified }}' > changed.txt
-          if grep ".*\.yml\|.*\.yaml" changed.txt; then
-            echo "files_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "files_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: dorny/paths-filter@v4
+        with:
+          token: ''
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          filters: |
+            yaml:
+              - added|modified:
+                  - '**/*.[yY][mM][lL]'
+                  - '**/*.[yY][aA][mM][lL]'
+      - name: Set up Ruby
+        if: steps.changed-files.outputs.yaml == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
       - name: Run Yaml Linter
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        if: steps.changed-files.outputs.yaml == 'true'
         run: |
-          gem install yaml-lint
-          find . -type f -iname "*.yml" -exec yaml-lint \{\} \+
-          find . -type f -iname "*.yaml" -exec yaml-lint \{\} \+
+          gem install yaml-lint --version 0.1.2 --no-document
+          find . -type f -iname "*.yml" -exec yaml-lint -n \{\} \+
+          find . -type f -iname "*.yaml" -exec yaml-lint -n \{\} \+

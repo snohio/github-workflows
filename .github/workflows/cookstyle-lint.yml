@@ -5,23 +5,27 @@ on:
 jobs:
   cookstyle-lint:
     runs-on: ubuntu-latest
-    container: chef/chefworkstation
     steps:
       - name: Checkout Code
-        uses: actions/checkout@main
-      - name: Pull Change list
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect Ruby changes
         id: changed-files
-        uses: collin-miller/git-changesets@master
-      - name: Verify Changed files
-        id: verify-changed-files
-        run: |
-          echo '${{ steps.changed-files.outputs.added_modified }}' > changed.txt
-          if grep ".*\.rb" changed.txt; then
-            echo "files_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "files_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: dorny/paths-filter@v4
+        with:
+          token: ''
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          filters: |
+            ruby:
+              - added|modified: '**/*.[rR][bB]'
+      - name: Set up Ruby
+        if: steps.changed-files.outputs.ruby == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
       - name: Run Cookstyle Linter
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        if: steps.changed-files.outputs.ruby == 'true'
         run: |
-          cookstyle --display-cop-names --extra-details --show-docs-url --display-style-guide
+          gem install cookstyle --version 9.0.9 --no-document
+          cookstyle --display-cop-names --extra-details --display-style-guide

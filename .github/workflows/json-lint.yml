@@ -5,24 +5,27 @@ on:
 jobs:
   json-lint:
     runs-on: ubuntu-latest
-    container: python:alpine
     steps:
       - name: Checkout Code
-        uses: actions/checkout@main
-      - name: Pull Change list
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect JSON changes
         id: changed-files
-        uses: collin-miller/git-changesets@master
-      - name: Verify Changed files
-        id: verify-changed-files
-        run: |
-          echo '${{ steps.changed-files.outputs.added_modified }}' > changed.txt
-          if grep ".*\.json" changed.txt; then
-            echo "files_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "files_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: dorny/paths-filter@v4
+        with:
+          token: ''
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          filters: |
+            json:
+              - added|modified: '**/*.[jJ][sS][oO][nN]'
+      - name: Set up Python
+        if: steps.changed-files.outputs.json == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
       - name: Run JSON Linter
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        if: steps.changed-files.outputs.json == 'true'
         run: |
-          pip install --no-cache-dir demjson3
+          python -m pip install --no-cache-dir demjson3==3.0.6
           find . -type f -iname "*.json" -exec jsonlint \{\} \+

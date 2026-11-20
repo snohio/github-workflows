@@ -5,24 +5,27 @@ on:
 jobs:
   markdown-lint:
     runs-on: ubuntu-latest
-    container: ruby:alpine
     steps:
       - name: Checkout Code
-        uses: actions/checkout@main
-      - name: Pull Change list
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Detect Markdown changes
         id: changed-files
-        uses: collin-miller/git-changesets@master
-      - name: Verify Changed files
-        id: verify-changed-files
-        run: |
-          echo '${{ steps.changed-files.outputs.added_modified }}' > changed.txt
-          if grep ".*\.md" changed.txt; then
-            echo "files_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "files_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: dorny/paths-filter@v4
+        with:
+          token: ''
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          filters: |
+            markdown:
+              - added|modified: '**/*.[mM][dD]'
+      - name: Set up Ruby
+        if: steps.changed-files.outputs.markdown == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
       - name: Run Markdown Linter
-        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        if: steps.changed-files.outputs.markdown == 'true'
         run: |
-          gem install mdl
+          gem install mdl --version 0.18.1 --no-document
           find . -type f -iname "*.md" -exec mdl \{\} \+
